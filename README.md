@@ -17,7 +17,10 @@ writes the result to one state file: `~/.tmux-claude-resume.json`
 `restore-tmux-claude-sessions.sh` reads that state file and, for each
 session in it, creates (or reuses) the named tmux session, adds a window
 with the saved title and working directory, and sends
-`claude --resume <session-id>` into it.
+`claude --resume <session-id>` into it. It tries to recreate each window at
+its originally saved index; if that index is already taken (e.g. you're
+adding onto a session you're still using), it falls back to tmux's default
+placement instead of clobbering whatever's there, and prints a warning.
 
 ### Neovim
 
@@ -110,8 +113,8 @@ file for you. Format:
 ]
 ```
 
-`window_index` only controls save-file ordering (windows are created in that
-order) — it does not force a specific tmux window number.
+`window_index` is the tmux window number restore will try to recreate the
+window at (falling back to default placement if it's taken).
 
 ## Known limitations
 
