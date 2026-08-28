@@ -38,6 +38,21 @@ open, cursor position, folds, and splits. A buffer with uncommitted changes
 reloads as the on-disk version. `:terminal` buffers inside Neovim also
 don't meaningfully survive a reload.
 
+## Prerequisites
+
+- **macOS.** Autosave uses launchd, and Neovim socket discovery's fast path
+  assumes macOS's `$TMPDIR` layout (it falls back to `lsof`, but that's
+  only been exercised on macOS too). Not tested on Linux.
+- **tmux** and **jq** on `PATH`.
+- **Claude Code CLI**, a version that writes `~/.claude/sessions/<pid>.json`
+  with a `tmux` field and supports `--resume <session-id>` (built against
+  2.1.250; older versions may not write that file).
+- The system `bash` (`/bin/bash`) and `lsof` — both ship with macOS, no
+  install needed. The scripts deliberately avoid bash 4+ features (macOS
+  ships bash 3.2) so they run correctly without Homebrew bash.
+- **Neovim** — optional, only needed for the Neovim session capture
+  feature. No plugin or config change required.
+
 ## Install
 
 Both scripts are plain bash. They need `tmux` and `jq` on `PATH`:
