@@ -101,15 +101,25 @@ just run `save-tmux-claude-sessions.sh` by hand before a planned reboot.
 
 Prints how many sessions it found and where it wrote them.
 
-**Restore**, after a reboot — always check the plan first:
+**Restore**, after a reboot:
 
 ```bash
-./restore-tmux-claude-sessions.sh          # dry run, prints the plan
-./restore-tmux-claude-sessions.sh --apply  # actually create windows + resume
+./restore-tmux-claude-sessions.sh          # prints the plan, then asks to apply
+./restore-tmux-claude-sessions.sh --apply  # skip the plan and prompt, apply now
 ```
+
+With no arguments, the plan is always printed first. If you're at a
+terminal, you're then asked to confirm before anything happens — no need to
+re-run with `--apply` separately. Piped or non-interactive (cron, launchd,
+etc.), it just prints the plan and stops, same as before. `--apply` skips
+straight to applying, no prompt — use it for scripted/non-interactive runs
+where you already know you want it applied.
 
 A tmux session name that already exists is not clobbered — new windows are
 added to it. A session name that doesn't exist yet is created fresh.
+
+Output is colored when attached to a terminal (respects `NO_COLOR`); piped
+or redirected output is plain text.
 
 **Manual list**, when you know exactly what you want back instead of relying
 on the last autosave: write `~/.tmux-claude-resume.json` yourself, or hand
