@@ -48,8 +48,15 @@ in `save-tmux-claude-sessions.sh` for the pattern.
 **A purely numeric tmux session name (e.g. `"0"`) is ambiguous as a bare
 `-t` target.** tmux's target parser can read a bare number as a window
 index in the current session instead of a session name, which silently
-creates or targets the wrong thing. Always resolve to a stable, unambiguous
-form before using session names as targets:
+creates or targets the wrong thing. This bit us for real: a fallback
+`new-window` call in the restore script (added later, for window-index
+preservation) passed the bare session name instead of a resolved id.
+During an actual restore, that ambiguity made tmux target an already-taken
+window index instead of creating a new one, which crashed the whole
+restore partway through (only a `set -e`-triggered hard failure — no data
+lost, but every window after the failure point was silently never
+restored). Always resolve to a stable, unambiguous form before using
+session names as targets:
 - `#{session_id}` (`$<n>`) for a session
 - `#{window_id}` (`@<n>`) for a window
 - `#{pane_id}` (`%<n>`) for a pane, captured directly from creation via
@@ -60,3 +67,11 @@ form before using session names as targets:
 spawns an `nvim --embed` child that does. Socket discovery has to walk the
 whole process subtree looking for any `nvim`-named process with a
 reachable socket, not just check the first match found.
+
+**One bad entry in the state file must not abort the rest of the restore.**
+`restore-tmux-claude-sessions.sh` runs under `set -e`, so any unguarded
+tmux call that fails takes the whole script down with it — including every
+window queued after the one that failed. The window-creation fallback
+chain (wanted index → any free index → give up on just this one) has to
+end in an explicit `continue`, never a bare failing command, or one
+unresolvable window silently costs you every window after it.

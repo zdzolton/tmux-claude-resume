@@ -77,10 +77,23 @@ process_sessions() {
   while IFS= read -r tmux_session; do
     [ -z "$tmux_session" ] && continue
 
+    # A purely numeric session name (e.g. "4") is ambiguous as a bare -t
+    # target — tmux can read it as a window index in the current session
+    # instead. Check existence via list-sessions (no -t at all) rather than
+    # has-session, and resolve to the stable $<id> form below before doing
+    # anything else with this session name.
     local session_exists=0
-    tmux has-session -t "$tmux_session" 2>/dev/null && session_exists=1
+    if tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -qxF "$tmux_session"; then
+      session_exists=1
+    fi
     local need_new_session
     need_new_session=$([ "$session_exists" -eq 1 ] && echo 0 || echo 1)
+
+    local sid=""
+    if [ "$session_exists" -eq 1 ] && [ "$mode" = "apply" ]; then
+      sid=$(tmux list-sessions -F '#{session_name}	#{session_id}' 2>/dev/null \
+        | awk -F'\t' -v s="$tmux_session" '$1==s{print $2; exit}')
+    fi
 
     while IFS=$'\t' read -r window_index window_name cwd session_id nvim_session_file; do
       if [ "$mode" = "plan" ]; then
@@ -101,22 +114,28 @@ process_sessions() {
       if [ "$need_new_session" -eq 1 ]; then
         pane_id=$(tmux new-session -d -s "$tmux_session" -n "$window_name" -c "$cwd" -P -F '#{pane_id}')
         need_new_session=0
+        # The session now definitely exists — resolve its stable id once,
+        # from the pane we just created (always unambiguous), for every
+        # later window in this session.
+        sid=$(tmux display-message -p -t "$pane_id" '#{session_id}')
         actual_index=$(tmux display-message -p -t "$pane_id" '#{window_index}')
         if [ "$actual_index" != "$window_index" ]; then
           window_id=$(tmux display-message -p -t "$pane_id" '#{window_id}')
-          if tmux move-window -s "$window_id" -t "$tmux_session:$window_index" 2>/dev/null; then
+          if tmux move-window -s "$window_id" -t "$sid:$window_index" 2>/dev/null; then
             :
           else
             echo "${c_yellow}  ! wanted index $window_index but landed on $actual_index (already taken)${c_reset}" >&2
           fi
         fi
       else
-        if pane_id=$(tmux new-window -t "$tmux_session:$window_index" -n "$window_name" -c "$cwd" -P -F '#{pane_id}' 2>/dev/null); then
+        if pane_id=$(tmux new-window -t "$sid:$window_index" -n "$window_name" -c "$cwd" -P -F '#{pane_id}' 2>/dev/null); then
           :
-        else
-          pane_id=$(tmux new-window -t "$tmux_session" -n "$window_name" -c "$cwd" -P -F '#{pane_id}')
+        elif pane_id=$(tmux new-window -t "$sid" -n "$window_name" -c "$cwd" -P -F '#{pane_id}' 2>/dev/null); then
           actual_index=$(tmux display-message -p -t "$pane_id" '#{window_index}')
           echo "${c_yellow}  ! wanted index $window_index but it's taken — landed on $actual_index instead${c_reset}" >&2
+        else
+          echo "${c_yellow}  ! couldn't create a window for '$window_name' (session $session_id) — skipping it, continuing with the rest${c_reset}" >&2
+          continue
         fi
       fi
 

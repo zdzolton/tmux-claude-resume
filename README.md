@@ -160,6 +160,12 @@ window at (falling back to default placement if it's taken).
   `~/.claude/sessions/<pid>.json` file, and something else reuses that PID
   before the next save, that stale entry could in theory be picked up. Low
   risk in practice, not specifically guarded against.
+- Only one Claude pane per window is modeled. If a window actually has two
+  Claude panes (e.g. two conversations split side by side), the save script
+  writes two entries with the same `window_index`, and restore can only
+  satisfy one of them at that index — the other falls back to whatever
+  slot's free. Both sessions do still get restored, just not at their
+  original shared window; window numbering may shift as a result.
 - The [claude-tmux-namer](https://github.com/cosgroveb/claude-tmux-namer)
   plugin renames windows based on live conversation content, so a restored
   title is a starting point — it will likely be renamed again after that
