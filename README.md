@@ -154,3 +154,8 @@ window at (falling back to default placement if it's taken).
   plugin renames windows based on live conversation content, so a restored
   title is a starting point — it will likely be renamed again after that
   session's next response.
+- Only one Neovim pane per window is captured. If a window has two Neovim
+  panes, the save script stops at whichever one it finds first (in tmux's
+  pane-index order) and silently skips the other — not implemented, since
+  it's an uncommon layout and restore already can't reproduce true pane
+  layout even for a single Neovim pane.
