@@ -19,6 +19,22 @@ session in it, creates (or reuses) the named tmux session, adds a window
 with the saved title and working directory, and sends
 `claude --resume <session-id>` into it.
 
+### Neovim
+
+If a window also has a Neovim pane, its open buffers and splits get saved
+too, and restored alongside Claude as a second pane. This needs no Neovim
+config change — every modern Neovim exposes an RPC socket automatically,
+which the save script discovers from the pane's process tree (by pid) and
+uses to trigger `:mksession!` in place. Restore then runs
+`nvim -S <session file>` in a plain vertical split next to Claude (the
+original split direction/proportions aren't reproduced — see the layout
+question in Known limitations if you want that instead).
+
+**`:mksession` does not capture unsaved edits** — only which files are
+open, cursor position, folds, and splits. A buffer with uncommitted changes
+reloads as the on-disk version. `:terminal` buffers inside Neovim also
+don't meaningfully survive a reload.
+
 ## Install
 
 Both scripts are plain bash. They need `tmux` and `jq` on `PATH`:
@@ -101,6 +117,13 @@ order) — it does not force a specific tmux window number.
 
 - Only top-level interactive sessions are captured; subagent/background
   sessions have no `tmux` field and are skipped, which is intentional.
+- Restoring a Neovim session always uses a plain vertical split, not the
+  original layout. If you want faithful layout reproduction later, tmux's
+  `window_layout` string would need to be captured at save time and
+  reapplied with `select-layout` at restore time — not implemented yet.
+- If Neovim's own swapfile from a prior (uncleanly-shut-down) instance is
+  still on disk, `nvim -S` on restore will show its usual swap-file
+  recovery prompt. That's normal Neovim behavior, not a bug in this tool.
 - A tmux session literally named with digits only (e.g. `"0"`) is handled
   correctly, but is a known tmux target-parsing gotcha — the restore script
   resolves to the stable `$<id>` form internally to avoid it. If you hack on

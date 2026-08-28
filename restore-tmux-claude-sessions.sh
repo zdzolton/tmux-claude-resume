@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Replay a snapshot written by save-tmux-claude-sessions.sh: recreate tmux
 # sessions/windows with their saved titles and resume the matching Claude
-# Code session in each.
+# Code session in each. A window that also had a Neovim session saved gets
+# a second pane (a plain vertical split — the original split direction and
+# proportions aren't reproduced) running `nvim -S <session file>`.
 #
 # Defaults to a dry run — pass --apply to actually create windows and start
 # Claude. If the target tmux session already exists, new windows are added
@@ -50,7 +52,7 @@ while IFS= read -r tmux_session; do
   tmux has-session -t "$tmux_session" 2>/dev/null && session_exists=1
   need_new_session=$([ "$session_exists" -eq 1 ] && echo 0 || echo 1)
 
-  while IFS=$'\t' read -r window_name cwd session_id; do
+  while IFS=$'\t' read -r window_name cwd session_id nvim_session_file; do
     if [ "$APPLY" -eq 0 ]; then
       if [ "$need_new_session" -eq 1 ]; then
         echo "[dry run] tmux new-session -d -s '$tmux_session' -n '$window_name' -c '$cwd'"
@@ -58,6 +60,9 @@ while IFS= read -r tmux_session; do
         echo "[dry run] tmux new-window -t '$tmux_session' -n '$window_name' -c '$cwd'"
       fi
       echo "[dry run]   -> claude --resume $session_id"
+      if [ -n "$nvim_session_file" ]; then
+        echo "[dry run]   -> split window, nvim -S '$nvim_session_file'"
+      fi
       need_new_session=0
       continue
     fi
@@ -78,8 +83,21 @@ while IFS= read -r tmux_session; do
     session_target=$(tmux display-message -p -t "$tmux_session" '#{session_id}')
     tmux send-keys -t "$session_target" "claude --resume $session_id" Enter
     echo "Restored '$window_name' in session '$tmux_session' -> $session_id"
+
+    if [ -n "$nvim_session_file" ]; then
+      if [ ! -f "$nvim_session_file" ]; then
+        echo "  ! nvim session file missing ($nvim_session_file) — skipping" >&2
+      elif ! command -v nvim >/dev/null 2>&1; then
+        echo "  ! nvim not found on PATH — skipping its session ($nvim_session_file)" >&2
+      else
+        tmux split-window -h -t "$session_target" -c "$cwd"
+        tmux send-keys -t "$session_target" "nvim -S '$nvim_session_file'" Enter
+        tmux select-pane -t "$session_target" -L
+        echo "  + restored nvim session alongside it"
+      fi
+    fi
   done < <(jq -r --arg s "$tmux_session" \
-      '[.[] | select(.tmux_session == $s)] | sort_by(.window_index) | .[] | [.window_name, .cwd, .session_id] | @tsv' \
+      '[.[] | select(.tmux_session == $s)] | sort_by(.window_index) | .[] | [.window_name, .cwd, .session_id, (.nvim_session_file // "")] | @tsv' \
       "$STATE_FILE")
 done <<< "$sessions"
 
