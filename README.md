@@ -65,8 +65,17 @@ chmod +x save-tmux-claude-sessions.sh restore-tmux-claude-sessions.sh
 
 A launchd agent runs the save script every 5 minutes and once at login, so
 the state file survives a crash or forced restart, not just a planned
-shutdown. It's already installed on this machine at
-`~/Library/LaunchAgents/local.tmux-claude-resume.save.plist`
+shutdown.
+
+Install it from this repo's folder. The template in `launchd/` has two
+placeholders, and `sed` fills them in:
+
+```bash
+sed -e "s|__RESUME_DIR__|$PWD|g" -e "s|__HOME__|$HOME|g" \
+  launchd/local.tmux-claude-resume.save.plist.template \
+  > ~/Library/LaunchAgents/local.tmux-claude-resume.save.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.tmux-claude-resume.save.plist
+```
 
 Useful commands:
 
